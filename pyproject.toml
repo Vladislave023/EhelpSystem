@@ -3,7 +3,15 @@ name = "ehelps"
 version = "0.1.0"
 description = "Backend for a knowledge-based first aid expert system"
 requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.7",
+    "scikit-learn>=1.5",
+    "joblib>=1.4",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["ehelps_backend*", "ehelps_ui*", "ehelps_ml*"]
