@@ -56,7 +56,7 @@ class DiagnosisServiceTestCase(unittest.TestCase):
         )
 
         self.assertEqual(result["diagnosis_name"], "глубокий порез")
-        self.assertEqual(result["treatment_name"], "Остановка кровотечения")
+        self.assertEqual(result["treatment_name"], "остановка кровотечения")
         self.assertGreater(len(result["actions"]), 0)
 
     def test_raises_for_unknown_feature(self) -> None:
