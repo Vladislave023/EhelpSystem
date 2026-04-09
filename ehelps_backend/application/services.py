@@ -20,10 +20,7 @@ class DiagnosisService:
             if self._matches_diagnosis(patient_state, diagnosis):
                 return self._build_result(diagnosis, patient_state)
 
-        raise DiagnosisNotFoundError(
-            "Не удалось определить диагноз по введенным признакам. "
-            "Проверьте полноту базы знаний или значения состояния пациента."
-        )
+        raise DiagnosisNotFoundError(self._build_no_match_message(patient_state))
 
     def _validate_patient_state(self, patient_state: PatientState) -> None:
         if not patient_state.values:
@@ -115,3 +112,31 @@ class DiagnosisService:
             actions=actions,
             explanation="\n".join(explanation_parts),
         )
+
+    def _build_no_match_message(self, patient_state: PatientState) -> str:
+        ranked: list[tuple[int, str, list[str]]] = []
+
+        for diagnosis in self.knowledge_base.iter_non_healthy_diagnoses():
+            mismatch_lines: list[str] = []
+            for feature_name, allowed_values in diagnosis.feature_ranges.items():
+                patient_value = patient_state.values[feature_name]
+                if not allowed_values.contains(patient_value):
+                    mismatch_lines.append(
+                        f"- {diagnosis.name}: признак '{feature_name}' имеет значение "
+                        f"{patient_value}, ожидается {allowed_values}"
+                    )
+            ranked.append((len(mismatch_lines), diagnosis.name, mismatch_lines))
+
+        ranked.sort(key=lambda item: (item[0], item[1]))
+        best_matches = ranked[:2]
+
+        message_lines = [
+            "Не удалось определить точный диагноз по введенным признакам.",
+        ]
+
+        if best_matches:
+            message_lines.append("Ближайшие варианты и причины несовпадения:")
+            for _, _, mismatch_lines in best_matches:
+                message_lines.extend(mismatch_lines)
+
+        return "\n".join(message_lines)

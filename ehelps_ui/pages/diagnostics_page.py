@@ -3,7 +3,6 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -16,6 +15,16 @@ from PySide6.QtWidgets import (
 
 from ehelps_backend.application.facade import ExpertSystemFacade
 from ehelps_backend.domain.exceptions import DomainError
+
+
+def format_range_for_display(expression: str) -> str:
+    compact = expression.replace(" ", "")
+    binary_labels = {
+        "I[0;0]": "только 0 (нет)",
+        "I[1;1]": "только 1 (да)",
+        "I[0;1]": "0 или 1",
+    }
+    return binary_labels.get(compact, expression)
 
 
 class DiagnosticsPage(QWidget):
@@ -82,10 +91,9 @@ class DiagnosticsPage(QWidget):
         scroll_content = QWidget()
         scroll.setWidget(scroll_content)
 
-        self.form_grid = QGridLayout(scroll_content)
-        self.form_grid.setContentsMargins(0, 0, 0, 0)
-        self.form_grid.setHorizontalSpacing(14)
-        self.form_grid.setVerticalSpacing(12)
+        self.form_layout = QVBoxLayout(scroll_content)
+        self.form_layout.setContentsMargins(0, 0, 0, 0)
+        self.form_layout.setSpacing(12)
 
         result_card = QFrame()
         result_card.setObjectName("SectionCard")
@@ -132,34 +140,50 @@ class DiagnosticsPage(QWidget):
     def refresh(self) -> None:
         snapshot = self.facade.get_snapshot()
 
-        while self.form_grid.count():
-            item = self.form_grid.takeAt(0)
+        while self.form_layout.count():
+            item = self.form_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
 
         self.inputs.clear()
 
-        for row_index, feature in enumerate(snapshot.features):
+        for feature in snapshot.features:
+            row_card = QFrame()
+            row_card.setObjectName("SectionCard")
+            self.form_layout.addWidget(row_card)
+
+            row_layout = QVBoxLayout(row_card)
+            row_layout.setContentsMargins(14, 12, 14, 12)
+            row_layout.setSpacing(8)
+
+            top_row = QHBoxLayout()
+            top_row.setSpacing(12)
+
             name_label = QLabel(feature.name)
-            self.form_grid.addWidget(name_label, row_index, 0)
+            name_label.setMinimumWidth(240)
+            top_row.addWidget(name_label)
 
             value_input = QLineEdit()
             value_input.setPlaceholderText(
-                f"Введите значение, допустимо: {feature.allowed_values}"
+                f"Введите значение, например {feature.normal_values}"
             )
-            self.form_grid.addWidget(value_input, row_index, 1)
+            value_input.setMinimumWidth(260)
+            top_row.addWidget(value_input, 1)
             self.inputs[feature.name] = value_input
 
             range_label = QLabel(
-                f"Допустимо: {feature.allowed_values} | Норма: {feature.normal_values}"
+                "Допустимо: "
+                f"{format_range_for_display(feature.allowed_values)}"
+                " | Норма: "
+                f"{format_range_for_display(feature.normal_values)}"
             )
             range_label.setObjectName("MutedText")
             range_label.setWordWrap(True)
-            self.form_grid.addWidget(range_label, row_index, 2)
+            row_layout.addLayout(top_row)
+            row_layout.addWidget(range_label)
 
-        self.form_grid.setColumnStretch(1, 1)
-        self.form_grid.setColumnStretch(2, 1)
+        self.form_layout.addStretch(1)
 
     def fill_example_values(self) -> None:
         example = {
@@ -196,7 +220,7 @@ class DiagnosticsPage(QWidget):
             }
             result = self.facade.evaluate_patient_state(values)
         except (DomainError, ValueError) as error:
-            QMessageBox.critical(self, "Ошибка анализа", str(error))
+            self._show_error("Ошибка анализа", str(error))
             return
 
         diagnosis_name = result["diagnosis_name"]
@@ -218,7 +242,39 @@ class DiagnosticsPage(QWidget):
     @staticmethod
     def _parse_numeric(value: str) -> float:
         if not value:
-            raise ValueError("Заполните все значения признаков перед анализом.")
+            return 0.0
 
         normalized = value.replace(",", ".")
         return float(normalized)
+
+    def _show_error(self, title: str, message: str) -> None:
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Critical)
+        dialog.setWindowTitle(title)
+        dialog.setText(message)
+        dialog.setStandardButtons(QMessageBox.Ok)
+        dialog.setStyleSheet(
+            """
+            QMessageBox {
+                background: #fffaf2;
+            }
+            QMessageBox QLabel {
+                color: #1d2426;
+                background: transparent;
+                min-width: 360px;
+            }
+            QMessageBox QPushButton {
+                background: #f0e6d8;
+                color: #1d2426;
+                border: 1px solid #d8c7b1;
+                border-radius: 14px;
+                padding: 10px 18px;
+                min-width: 88px;
+                font-weight: 600;
+            }
+            QMessageBox QPushButton:hover {
+                background: #eadbc7;
+            }
+            """
+        )
+        dialog.exec()

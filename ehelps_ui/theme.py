@@ -172,6 +172,29 @@ QComboBox::drop-down {
     background: #f7f1e7;
 }
 
+QListWidget {
+    background: #fffdf8;
+    border: 1px solid #d9ceb9;
+    border-radius: 18px;
+    padding: 8px;
+    outline: none;
+}
+
+QListWidget::item {
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin: 2px 0;
+}
+
+QListWidget::item:selected {
+    background: #f2dec9;
+    color: #1d2426;
+}
+
+QSplitter::handle {
+    background: transparent;
+}
+
 QTableWidget {
     background: #fffdf8;
     border: 1px solid #d9ceb9;
@@ -212,5 +235,19 @@ QScrollBar::handle:vertical {
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
+}
+
+QMessageBox {
+    background: #fffaf2;
+}
+
+QMessageBox QLabel {
+    color: #1d2426;
+    background: transparent;
+    min-width: 320px;
+}
+
+QMessageBox QPushButton {
+    min-width: 88px;
 }
 """
