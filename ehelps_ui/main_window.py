@@ -69,7 +69,7 @@ class MainWindow(QMainWindow):
 
         self.sidebar = Sidebar(
             [
-                SidebarItem("patient", "Пациенты"),
+                SidebarItem("diagnostics", "Диагностика"),
                 SidebarItem("features", "Признаки"),
                 SidebarItem("diagnoses", "Диагнозы"),
                 SidebarItem("actions", "Действия"),
@@ -86,10 +86,10 @@ class MainWindow(QMainWindow):
 
         self.page_indexes: dict[str, int] = {}
         self._add_page(
-            "patient",
+            "diagnostics",
             PlaceholderPage(
-                "Пациенты",
-                "Здесь будет форма ввода признаков состояния пациента и запуск диагностики.",
+                "Диагностика",
+                "Здесь будет ввод симптомов, определение состояния и вывод рекомендаций.",
             ),
         )
         self._add_page("features", FeaturesPage(self.facade.editor))
