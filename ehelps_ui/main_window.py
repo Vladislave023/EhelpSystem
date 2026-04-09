@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from ehelps_backend.application.facade import ExpertSystemFacade
+from ehelps_ui.pages.diagnostics_page import DiagnosticsPage
 from ehelps_ui.pages.features_page import FeaturesPage
 from ehelps_ui.pages.placeholders import PlaceholderPage
 from ehelps_ui.widgets.sidebar import Sidebar, SidebarItem
@@ -87,10 +88,7 @@ class MainWindow(QMainWindow):
         self.page_indexes: dict[str, int] = {}
         self._add_page(
             "diagnostics",
-            PlaceholderPage(
-                "Диагностика",
-                "Здесь будет ввод симптомов, определение состояния и вывод рекомендаций.",
-            ),
+            DiagnosticsPage(self.facade),
         )
         self._add_page("features", FeaturesPage(self.facade.editor))
         self._add_page(

@@ -74,6 +74,12 @@ QLabel#MutedText {
     color: #71685c;
 }
 
+QLabel#ResultValue {
+    color: #1d2426;
+    font-size: 12.5pt;
+    font-weight: 600;
+}
+
 QLabel#SidebarNote {
     color: #c8d5d8;
     font-size: 10.5pt;
