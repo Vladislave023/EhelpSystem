@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from ehelps_backend.application.facade import ExpertSystemFacade
 from ehelps_ui.pages.diagnostics_page import DiagnosticsPage
+from ehelps_ui.pages.diagnoses_page import DiagnosesPage
 from ehelps_ui.pages.features_page import FeaturesPage
 from ehelps_ui.pages.placeholders import PlaceholderPage
 from ehelps_ui.widgets.sidebar import Sidebar, SidebarItem
@@ -93,10 +94,7 @@ class MainWindow(QMainWindow):
         self._add_page("features", FeaturesPage(self.facade.editor))
         self._add_page(
             "diagnoses",
-            PlaceholderPage(
-                "Диагнозы",
-                "Следующим шагом сюда подключим таблицу диагнозов, признаки диагноза и выбор лечения.",
-            ),
+            DiagnosesPage(self.facade.editor),
         )
         self._add_page(
             "actions",
