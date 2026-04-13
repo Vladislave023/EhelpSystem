@@ -13,6 +13,7 @@ def main() -> None:
     print(f"Классов: {result.dataset_summary.num_classes}")
     print(f"Train/Test: {result.train_size}/{result.test_size}")
     print(f"Accuracy: {result.accuracy:.4f}")
+    print(f"Macro F1: {result.macro_f1:.4f}")
     print()
     print("Артефакты:")
     print(f"- Датасет: {result.artifacts.dataset_path}")
@@ -20,6 +21,12 @@ def main() -> None:
     print(f"- Метрики: {result.artifacts.metrics_path}")
     print(f"- Отчет: {result.artifacts.report_path}")
     print(f"- Confusion matrix: {result.artifacts.confusion_matrix_path}")
+    print(f"- Важности признаков: {result.artifacts.feature_importances_path}")
+    print()
+    print(
+        "Примечание: метрики считаются на синтетических данных и остаются оптимистичнее,"
+        " чем на реальных клинических случаях."
+    )
 
 
 if __name__ == "__main__":

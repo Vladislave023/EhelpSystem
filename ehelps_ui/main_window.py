@@ -6,16 +6,20 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
+    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from ehelps_backend.application.facade import ExpertSystemFacade
+from ehelps_ui.pages.actions_page import ActionsPage
 from ehelps_ui.pages.diagnostics_page import DiagnosticsPage
 from ehelps_ui.pages.diagnoses_page import DiagnosesPage
 from ehelps_ui.pages.features_page import FeaturesPage
-from ehelps_ui.pages.placeholders import PlaceholderPage
+from ehelps_ui.pages.protocols_page import ProtocolsPage
+from ehelps_ui.pages.treatments_page import TreatmentsPage
 from ehelps_ui.widgets.sidebar import Sidebar, SidebarItem
 
 
@@ -60,6 +64,10 @@ class MainWindow(QMainWindow):
 
         top_bar.addLayout(title_block, 1)
 
+        completeness_button = QPushButton("Проверка полноты знаний")
+        completeness_button.clicked.connect(self.check_knowledge_integrity)
+        top_bar.addWidget(completeness_button)
+
         status = QLabel("JSON-хранилище подключено")
         status.setObjectName("StatusPill")
         top_bar.addWidget(status, 0, Qt.AlignRight | Qt.AlignVCenter)
@@ -75,8 +83,8 @@ class MainWindow(QMainWindow):
                 SidebarItem("features", "Признаки"),
                 SidebarItem("diagnoses", "Диагнозы"),
                 SidebarItem("actions", "Действия"),
-                SidebarItem("protocols", "Протоколы помощи"),
                 SidebarItem("treatments", "Названия лечения"),
+                SidebarItem("protocols", "Протоколы помощи"),
             ]
         )
         self.sidebar.setFixedWidth(280)
@@ -97,25 +105,12 @@ class MainWindow(QMainWindow):
             DiagnosesPage(self.facade.editor),
         )
         self._add_page(
-            "actions",
-            PlaceholderPage(
-                "Действия",
-                "Здесь появится редактор элементарных действий первой помощи.",
-            ),
+            "actions", ActionsPage(self.facade.editor)
         )
+        self._add_page("treatments", TreatmentsPage(self.facade.editor))
         self._add_page(
             "protocols",
-            PlaceholderPage(
-                "Протоколы помощи",
-                "Здесь появится сборка действий в протоколы для выбранного лечения.",
-            ),
-        )
-        self._add_page(
-            "treatments",
-            PlaceholderPage(
-                "Названия лечения",
-                "Здесь будет список названий лечения и их описаний.",
-            ),
+            ProtocolsPage(self.facade.editor),
         )
 
         self.set_current_page("features")
@@ -126,3 +121,22 @@ class MainWindow(QMainWindow):
 
     def _add_page(self, key: str, widget: QWidget) -> None:
         self.page_indexes[key] = self.stack.addWidget(widget)
+
+    def check_knowledge_integrity(self) -> None:
+        try:
+            self.facade.editor.reload()
+            self.facade.editor.validate_integrity()
+            stats = self.facade.editor.get_statistics()
+        except Exception as error:
+            QMessageBox.critical(self, "Проверка полноты знаний", str(error))
+            return
+
+        message = (
+            "База знаний корректна и не содержит нарушений целостности.\n\n"
+            f"Признаков: {stats['features']}\n"
+            f"Диагнозов: {stats['diagnoses']}\n"
+            f"Действий: {stats['actions']}\n"
+            f"Названий лечения: {stats['treatments']}\n"
+            f"Протоколов: {stats['protocols']}"
+        )
+        QMessageBox.information(self, "Проверка полноты знаний", message)
