@@ -90,3 +90,32 @@ class DiagnosisServiceTestCase(unittest.TestCase):
                     "Лишний признак": 1,
                 }
             )
+
+    def test_analyze_returns_refutation_for_non_exact_burn_case(self) -> None:
+        analysis = self.facade.analyze_patient_state(
+            {
+                "Глубина повреждения": 0,
+                "Площадь повреждения": 0,
+                "Наличие кровотечения": 0,
+                "Интенсивность боли": 6,
+                "Жжение кожи": 1,
+                "Линейная форма повреждения": 0,
+                "Покраснение кожи": 1,
+                "Наличие волдырей": 1,
+                "Нарушение целостности кожи": 0,
+                "Ограничение подвижности": 0,
+                "Отёк": 0,
+                "Наличие гематомы": 0,
+                "Наличие инородного тела": 0,
+                "Точечное повреждение": 0,
+            }
+        )
+
+        self.assertFalse(analysis["expert"]["exact_match"])
+        self.assertIsNone(analysis["expert"]["diagnosis_name"])
+        self.assertGreater(len(analysis["expert"]["hypotheses"]), 0)
+
+        top_hypothesis = analysis["expert"]["hypotheses"][0]
+        self.assertIn(top_hypothesis["diagnosis_name"], {"ожог I степени", "ожог II степени"})
+        self.assertGreater(len(top_hypothesis["matched_features"]), 0)
+        self.assertGreater(len(top_hypothesis["rejected_features"]), 0)

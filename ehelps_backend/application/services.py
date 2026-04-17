@@ -6,21 +6,59 @@ from ehelps_backend.domain.entities import DecisionResult, Diagnosis, KnowledgeB
 from ehelps_backend.domain.exceptions import DiagnosisNotFoundError, InvalidPatientStateError
 
 
+@dataclass(frozen=True, slots=True)
+class HypothesisFeatureCheck:
+    feature_name: str
+    patient_value: float
+    expected_range: str
+    matches: bool
+
+
+@dataclass(frozen=True, slots=True)
+class HypothesisAnalysis:
+    diagnosis_name: str
+    exact_match: bool
+    matched_features: list[HypothesisFeatureCheck]
+    rejected_features: list[HypothesisFeatureCheck]
+
+
+@dataclass(frozen=True, slots=True)
+class DiagnosticAnalysis:
+    decision_result: DecisionResult | None
+    hypotheses: list[HypothesisAnalysis]
+
+
 @dataclass(slots=True)
 class DiagnosisService:
     knowledge_base: KnowledgeBase
 
     def evaluate(self, patient_state: PatientState) -> DecisionResult:
+        analysis = self.analyze(patient_state)
+        if analysis.decision_result is not None:
+            return analysis.decision_result
+        raise DiagnosisNotFoundError(self._build_no_match_message(analysis.hypotheses))
+
+    def analyze(self, patient_state: PatientState) -> DiagnosticAnalysis:
         self._validate_patient_state(patient_state)
 
+        hypotheses = self._build_hypotheses(patient_state)
         if self._is_healthy(patient_state):
-            return self._build_healthy_result()
+            return DiagnosticAnalysis(
+                decision_result=self._build_healthy_result(),
+                hypotheses=hypotheses,
+            )
 
         for diagnosis in self.knowledge_base.iter_non_healthy_diagnoses():
             if self._matches_diagnosis(patient_state, diagnosis):
-                return self._build_result(diagnosis, patient_state)
+                return DiagnosticAnalysis(
+                    decision_result=self._build_result(diagnosis, patient_state),
+                    hypotheses=hypotheses,
+                )
 
-        raise DiagnosisNotFoundError(self._build_no_match_message(patient_state))
+        return DiagnosticAnalysis(
+            decision_result=None,
+            hypotheses=hypotheses,
+        )
 
     def _validate_patient_state(self, patient_state: PatientState) -> None:
         if not patient_state.values:
@@ -113,22 +151,46 @@ class DiagnosisService:
             explanation="\n".join(explanation_parts),
         )
 
-    def _build_no_match_message(self, patient_state: PatientState) -> str:
-        ranked: list[tuple[int, str, list[str]]] = []
+    def _build_hypotheses(self, patient_state: PatientState) -> list[HypothesisAnalysis]:
+        hypotheses: list[HypothesisAnalysis] = []
 
         for diagnosis in self.knowledge_base.iter_non_healthy_diagnoses():
-            mismatch_lines: list[str] = []
+            matched_features: list[HypothesisFeatureCheck] = []
+            rejected_features: list[HypothesisFeatureCheck] = []
+
             for feature_name, allowed_values in diagnosis.feature_ranges.items():
                 patient_value = patient_state.values[feature_name]
-                if not allowed_values.contains(patient_value):
-                    mismatch_lines.append(
-                        f"- {diagnosis.name}: признак '{feature_name}' имеет значение "
-                        f"{patient_value}, ожидается {allowed_values}"
-                    )
-            ranked.append((len(mismatch_lines), diagnosis.name, mismatch_lines))
+                check = HypothesisFeatureCheck(
+                    feature_name=feature_name,
+                    patient_value=patient_value,
+                    expected_range=str(allowed_values),
+                    matches=allowed_values.contains(patient_value),
+                )
+                if check.matches:
+                    matched_features.append(check)
+                else:
+                    rejected_features.append(check)
 
-        ranked.sort(key=lambda item: (item[0], item[1]))
-        best_matches = ranked[:2]
+            hypotheses.append(
+                HypothesisAnalysis(
+                    diagnosis_name=diagnosis.name,
+                    exact_match=not rejected_features,
+                    matched_features=matched_features,
+                    rejected_features=rejected_features,
+                )
+            )
+
+        hypotheses.sort(
+            key=lambda item: (
+                len(item.rejected_features),
+                -len(item.matched_features),
+                item.diagnosis_name,
+            )
+        )
+        return hypotheses
+
+    def _build_no_match_message(self, hypotheses: list[HypothesisAnalysis]) -> str:
+        best_matches = hypotheses[:2]
 
         message_lines = [
             "Не удалось определить точный диагноз по введенным признакам.",
@@ -136,7 +198,11 @@ class DiagnosisService:
 
         if best_matches:
             message_lines.append("Ближайшие варианты и причины несовпадения:")
-            for _, _, mismatch_lines in best_matches:
-                message_lines.extend(mismatch_lines)
+            for hypothesis in best_matches:
+                for check in hypothesis.rejected_features:
+                    message_lines.append(
+                        f"- {hypothesis.diagnosis_name}: признак '{check.feature_name}' "
+                        f"имеет значение {check.patient_value}, ожидается {check.expected_range}"
+                    )
 
         return "\n".join(message_lines)

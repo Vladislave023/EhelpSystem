@@ -4,6 +4,7 @@ from dataclasses import asdict
 from dataclasses import dataclass, field
 
 from ehelps_backend.application.dto import (
+    build_diagnostic_analysis_dto,
     KnowledgeBaseSnapshotDTO,
     build_decision_result_dto,
     build_diagnosis_dto,
@@ -15,6 +16,7 @@ from ehelps_backend.application.editor import KnowledgeBaseEditorService
 from ehelps_backend.application.services import DiagnosisService
 from ehelps_backend.domain.entities import PatientState
 from ehelps_backend.infrastructure.json_repository import JsonKnowledgeBaseRepository
+from ehelps_ml.prediction import MlPredictionService
 
 
 @dataclass(slots=True)
@@ -53,3 +55,11 @@ class ExpertSystemFacade:
         diagnosis_service = DiagnosisService(self.editor.knowledge_base)
         result = diagnosis_service.evaluate(PatientState(values=values))
         return asdict(build_decision_result_dto(result))
+
+    def analyze_patient_state(self, values: dict[str, float]) -> dict[str, object]:
+        self.editor.reload()
+        patient_state = PatientState(values=values)
+        diagnosis_service = DiagnosisService(self.editor.knowledge_base)
+        expert_analysis = diagnosis_service.analyze(patient_state)
+        ml_result = MlPredictionService.default().predict(values)
+        return asdict(build_diagnostic_analysis_dto(expert_analysis, ml_result))
