@@ -86,6 +86,13 @@ QLabel#SidebarNote {
     line-height: 1.3em;
 }
 
+QLabel#SidebarGroup {
+    color: #d8b07d;
+    font-size: 10pt;
+    font-weight: 600;
+    padding-top: 8px;
+}
+
 QLabel#StatusPill {
     background: #f4e0d1;
     color: #9a4d1f;

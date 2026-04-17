@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from ehelps_backend.application.facade import ExpertSystemFacade
 from ehelps_ui.pages.actions_page import ActionsPage
+from ehelps_ui.pages.diagnostic_result_page import DiagnosticResultPage
 from ehelps_ui.pages.diagnostics_page import DiagnosticsPage
 from ehelps_ui.pages.diagnoses_page import DiagnosesPage
 from ehelps_ui.pages.features_page import FeaturesPage
@@ -57,7 +58,7 @@ class MainWindow(QMainWindow):
         title_block.addWidget(title)
 
         subtitle = QLabel(
-            "Диагностика бытовых травм и ведение базы знаний в одном приложении."
+            "Пользовательская диагностика и редактор базы знаний в одном приложении."
         )
         subtitle.setObjectName("MutedText")
         title_block.addWidget(subtitle)
@@ -79,12 +80,13 @@ class MainWindow(QMainWindow):
 
         self.sidebar = Sidebar(
             [
-                SidebarItem("diagnostics", "Диагностика"),
-                SidebarItem("features", "Признаки"),
-                SidebarItem("diagnoses", "Диагнозы"),
-                SidebarItem("actions", "Действия"),
-                SidebarItem("treatments", "Названия лечения"),
-                SidebarItem("protocols", "Протоколы помощи"),
+                SidebarItem("input_data", "Исходные данные", "Пользователь"),
+                SidebarItem("diagnostic_result", "Результат", "Пользователь"),
+                SidebarItem("features", "Признаки", "Редактор базы знаний"),
+                SidebarItem("diagnoses", "Диагнозы", "Редактор базы знаний"),
+                SidebarItem("actions", "Действия", "Редактор базы знаний"),
+                SidebarItem("treatments", "Лечение", "Редактор базы знаний"),
+                SidebarItem("protocols", "Протоколы помощи", "Редактор базы знаний"),
             ]
         )
         self.sidebar.setFixedWidth(280)
@@ -95,10 +97,16 @@ class MainWindow(QMainWindow):
         body_layout.addWidget(self.stack, 1)
 
         self.page_indexes: dict[str, int] = {}
-        self._add_page(
-            "diagnostics",
-            DiagnosticsPage(self.facade),
+        self.result_page = DiagnosticResultPage(on_back_requested=self.show_input_page)
+        self.input_page = DiagnosticsPage(
+            self.facade,
+            on_analysis_ready=self.show_diagnostic_result,
         )
+        self._add_page(
+            "input_data",
+            self.input_page,
+        )
+        self._add_page("diagnostic_result", self.result_page)
         self._add_page("features", FeaturesPage(self.facade.editor))
         self._add_page(
             "diagnoses",
@@ -113,7 +121,7 @@ class MainWindow(QMainWindow):
             ProtocolsPage(self.facade.editor),
         )
 
-        self.set_current_page("features")
+        self.set_current_page("input_data")
 
     def set_current_page(self, key: str) -> None:
         self.stack.setCurrentIndex(self.page_indexes[key])
@@ -121,6 +129,17 @@ class MainWindow(QMainWindow):
 
     def _add_page(self, key: str, widget: QWidget) -> None:
         self.page_indexes[key] = self.stack.addWidget(widget)
+
+    def show_diagnostic_result(
+        self,
+        values: dict[str, float],
+        analysis: dict[str, object],
+    ) -> None:
+        self.result_page.set_analysis(values, analysis)
+        self.set_current_page("diagnostic_result")
+
+    def show_input_page(self) -> None:
+        self.set_current_page("input_data")
 
     def check_knowledge_integrity(self) -> None:
         try:
@@ -136,7 +155,7 @@ class MainWindow(QMainWindow):
             f"Признаков: {stats['features']}\n"
             f"Диагнозов: {stats['diagnoses']}\n"
             f"Действий: {stats['actions']}\n"
-            f"Названий лечения: {stats['treatments']}\n"
+            f"Лечений: {stats['treatments']}\n"
             f"Протоколов: {stats['protocols']}"
         )
         QMessageBox.information(self, "Проверка полноты знаний", message)

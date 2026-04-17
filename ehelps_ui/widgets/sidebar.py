@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QButtonGroup, QFrame, QVBoxLayout, QPushButton, QL
 class SidebarItem:
     key: str
     title: str
+    section: str | None = None
 
 
 class Sidebar(QFrame):
@@ -28,14 +29,21 @@ class Sidebar(QFrame):
         title.setObjectName("SectionTitle")
         layout.addWidget(title)
 
-        note = QLabel("База знаний\nи сценарии помощи")
+        note = QLabel("Пользователь\nи редактор базы знаний")
         note.setObjectName("SidebarNote")
         layout.addWidget(note)
 
         self.button_group = QButtonGroup(self)
         self.button_group.setExclusive(True)
 
+        current_section: str | None = None
         for item in items:
+            if item.section and item.section != current_section:
+                current_section = item.section
+                section_label = QLabel(item.section)
+                section_label.setObjectName("SidebarGroup")
+                layout.addWidget(section_label)
+
             button = QPushButton(item.title)
             button.setCheckable(True)
             button.setObjectName("NavButton")

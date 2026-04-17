@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from collections.abc import Callable
+
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -28,9 +29,16 @@ def format_range_for_display(expression: str) -> str:
 
 
 class DiagnosticsPage(QWidget):
-    def __init__(self, facade: ExpertSystemFacade, parent=None) -> None:
+    def __init__(
+        self,
+        facade: ExpertSystemFacade,
+        *,
+        on_analysis_ready: Callable[[dict[str, float], dict[str, object]], None] | None = None,
+        parent=None,
+    ) -> None:
         super().__init__(parent)
         self.facade = facade
+        self.on_analysis_ready = on_analysis_ready
         self.inputs: dict[str, QLineEdit] = {}
 
         root = QVBoxLayout(self)
@@ -47,12 +55,15 @@ class DiagnosticsPage(QWidget):
 
         header_layout = QHBoxLayout()
         title_block = QVBoxLayout()
-        title = QLabel("Диагностика")
+        title = QLabel("Исходные данные")
         title.setObjectName("PageTitle")
         title_block.addWidget(title)
 
-        subtitle = QLabel("Введите наблюдаемые значения признаков и запустите анализ.")
+        subtitle = QLabel(
+            "Введите наблюдаемые признаки состояния пациента. Пустые поля считаются равными 0."
+        )
         subtitle.setObjectName("MutedText")
+        subtitle.setWordWrap(True)
         title_block.addWidget(subtitle)
         header_layout.addLayout(title_block, 1)
 
@@ -64,16 +75,36 @@ class DiagnosticsPage(QWidget):
         clear_button.clicked.connect(self.clear_inputs)
         header_layout.addWidget(clear_button)
 
-        run_button = QPushButton("Определить состояние")
+        run_button = QPushButton("Получить результат")
         run_button.setObjectName("PrimaryButton")
-        run_button.clicked.connect(self.run_diagnostics)
+        run_button.clicked.connect(self.run_analysis)
         header_layout.addWidget(run_button)
 
         layout.addLayout(header_layout)
 
+        note_card = QFrame()
+        note_card.setObjectName("SectionCard")
+        layout.addWidget(note_card)
+
+        note_layout = QVBoxLayout(note_card)
+        note_layout.setContentsMargins(18, 18, 18, 18)
+        note_layout.setSpacing(8)
+
+        note_title = QLabel("Как работает анализ")
+        note_title.setObjectName("SectionTitle")
+        note_layout.addWidget(note_title)
+
+        note_text = QLabel(
+            "После расчета система покажет результат экспертной системы, ML-прогноз и "
+            "опровержение гипотез по каждому близкому диагнозу."
+        )
+        note_text.setObjectName("MutedText")
+        note_text.setWordWrap(True)
+        note_layout.addWidget(note_text)
+
         form_card = QFrame()
         form_card.setObjectName("SectionCard")
-        layout.addWidget(form_card)
+        layout.addWidget(form_card, 1)
 
         form_layout = QVBoxLayout(form_card)
         form_layout.setContentsMargins(18, 18, 18, 18)
@@ -94,46 +125,6 @@ class DiagnosticsPage(QWidget):
         self.form_layout = QVBoxLayout(scroll_content)
         self.form_layout.setContentsMargins(0, 0, 0, 0)
         self.form_layout.setSpacing(12)
-
-        result_card = QFrame()
-        result_card.setObjectName("SectionCard")
-        layout.addWidget(result_card)
-
-        result_layout = QVBoxLayout(result_card)
-        result_layout.setContentsMargins(18, 18, 18, 18)
-        result_layout.setSpacing(12)
-
-        result_title = QLabel("Результат")
-        result_title.setObjectName("SectionTitle")
-        result_layout.addWidget(result_title)
-
-        self.result_summary = QLabel("Результат еще не рассчитан.")
-        self.result_summary.setObjectName("ResultValue")
-        self.result_summary.setWordWrap(True)
-        result_layout.addWidget(self.result_summary)
-
-        self.result_treatment = QLabel("")
-        self.result_treatment.setObjectName("ResultValue")
-        self.result_treatment.setWordWrap(True)
-        result_layout.addWidget(self.result_treatment)
-
-        self.actions_label = QLabel("Рекомендуемые действия")
-        self.actions_label.setObjectName("SectionTitle")
-        result_layout.addWidget(self.actions_label)
-
-        self.actions_text = QLabel("После анализа здесь появится список действий.")
-        self.actions_text.setObjectName("MutedText")
-        self.actions_text.setWordWrap(True)
-        result_layout.addWidget(self.actions_text)
-
-        self.explanation_title = QLabel("Обоснование")
-        self.explanation_title.setObjectName("SectionTitle")
-        result_layout.addWidget(self.explanation_title)
-
-        self.explanation_text = QLabel("Система покажет, почему был выбран именно этот диагноз.")
-        self.explanation_text.setObjectName("MutedText")
-        self.explanation_text.setWordWrap(True)
-        result_layout.addWidget(self.explanation_text)
 
         self.refresh()
 
@@ -191,16 +182,11 @@ class DiagnosticsPage(QWidget):
             "Площадь повреждения": "4.0",
             "Наличие кровотечения": "1",
             "Интенсивность боли": "7",
-            "Жжение кожи": "0",
-            "Линейная форма повреждения": "1",
             "Покраснение кожи": "0",
             "Наличие волдырей": "0",
-            "Нарушение целостности кожи": "1",
-            "Ограничение подвижности": "0",
             "Отёк": "0",
             "Наличие гематомы": "0",
             "Наличие инородного тела": "0",
-            "Точечное повреждение": "0",
         }
 
         for feature_name, input_widget in self.inputs.items():
@@ -210,39 +196,19 @@ class DiagnosticsPage(QWidget):
         for input_widget in self.inputs.values():
             input_widget.clear()
 
-        self.result_summary.setText("Результат еще не рассчитан.")
-        self.result_treatment.setText("")
-        self.actions_text.setText("После анализа здесь появится список действий.")
-        self.explanation_text.setText(
-            "Система покажет, почему был выбран именно этот диагноз."
-        )
-
-    def run_diagnostics(self) -> None:
+    def run_analysis(self) -> None:
         try:
             values = {
                 feature_name: self._parse_numeric(input_widget.text().strip())
                 for feature_name, input_widget in self.inputs.items()
             }
-            result = self.facade.evaluate_patient_state(values)
+            analysis = self.facade.analyze_patient_state(values)
         except (DomainError, ValueError) as error:
             self._show_error("Ошибка анализа", str(error))
             return
 
-        diagnosis_name = result["diagnosis_name"]
-        treatment_name = result["treatment_name"] or "не требуется"
-        treatment_description = result["treatment_description"] or ""
-        actions = result["actions"]
-        explanation = result["explanation"]
-
-        self.result_summary.setText(f"Определено состояние: {diagnosis_name}")
-        self.result_treatment.setText(
-            f"Рекомендуемое лечение: {treatment_name}"
-            + (f"\n{treatment_description}" if treatment_description else "")
-        )
-        self.actions_text.setText(
-            "\n".join(f"- {action}" for action in actions) if actions else "Действия не требуются."
-        )
-        self.explanation_text.setText(explanation)
+        if self.on_analysis_ready is not None:
+            self.on_analysis_ready(values, analysis)
 
     @staticmethod
     def _parse_numeric(value: str) -> float:

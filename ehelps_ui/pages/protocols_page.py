@@ -68,7 +68,7 @@ class ProtocolsPage(QWidget):
         selector_layout.setContentsMargins(18, 18, 18, 18)
         selector_layout.setSpacing(12)
 
-        selector_label = QLabel("Выберите название лечения")
+        selector_label = QLabel("Выберите лечение")
         selector_label.setObjectName("SectionTitle")
         selector_layout.addWidget(selector_label)
 
@@ -181,7 +181,7 @@ class ProtocolsPage(QWidget):
     def add_action_to_protocol(self) -> None:
         treatment_name = self.current_treatment_name()
         if treatment_name is None:
-            self._show_error("Сначала выберите название лечения.")
+            self._show_error("Сначала выберите лечение.")
             return
 
         action_name = self.action_combo.currentText().strip()

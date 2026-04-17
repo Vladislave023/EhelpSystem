@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QTextEdit,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -28,6 +27,7 @@ class TreatmentsPage(QWidget):
         self.editor = editor
         self.current_treatment_name: str | None = None
         self.treatments_by_name: dict[str, Treatment] = {}
+        self.related_diagnoses_by_treatment: dict[str, list[str]] = {}
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -45,11 +45,11 @@ class TreatmentsPage(QWidget):
         header_layout.setSpacing(12)
 
         title_block = QVBoxLayout()
-        title = QLabel("Названия лечения")
+        title = QLabel("Лечение")
         title.setObjectName("PageTitle")
         title_block.addWidget(title)
 
-        self.subtitle = QLabel("Список терминов лечения из базы знаний.")
+        self.subtitle = QLabel("Лечения и связанные с ними диагнозы.")
         self.subtitle.setObjectName("MutedText")
         title_block.addWidget(self.subtitle)
         header_layout.addLayout(title_block, 1)
@@ -66,7 +66,7 @@ class TreatmentsPage(QWidget):
         layout.addLayout(header_layout)
 
         self.table = QTableWidget(0, 2)
-        self.table.setHorizontalHeaderLabels(["Название лечения", "Описание"])
+        self.table.setHorizontalHeaderLabels(["Название лечения", "Связанные диагнозы"])
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -92,7 +92,7 @@ class TreatmentsPage(QWidget):
         row.setSpacing(12)
 
         self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("Введите название лечения")
+        self.name_input.setPlaceholderText("Введите лечение")
         row.addWidget(self.name_input, 1)
 
         add_button = QPushButton("Добавить")
@@ -106,19 +106,17 @@ class TreatmentsPage(QWidget):
 
         form_layout.addLayout(row)
 
-        description_label = QLabel("Описание лечения")
-        description_label.setObjectName("SectionTitle")
-        form_layout.addWidget(description_label)
+        linked_title = QLabel("Связанные диагнозы")
+        linked_title.setObjectName("SectionTitle")
+        form_layout.addWidget(linked_title)
 
-        self.description_input = QTextEdit()
-        self.description_input.setPlaceholderText(
-            "Введите краткое описание того, как выполняется лечение."
-        )
-        self.description_input.setMinimumHeight(110)
-        form_layout.addWidget(self.description_input)
+        self.linked_diagnoses = QLabel("Выберите лечение, чтобы увидеть связанные диагнозы.")
+        self.linked_diagnoses.setObjectName("MutedText")
+        self.linked_diagnoses.setWordWrap(True)
+        form_layout.addWidget(self.linked_diagnoses)
 
         hint = QLabel(
-            "Это описание показывается пользователю после определения диагноза."
+            "Связь лечения с диагнозами настраивается в разделе «Диагнозы» через поле выбора лечения."
         )
         hint.setObjectName("MutedText")
         hint.setWordWrap(True)
@@ -129,14 +127,24 @@ class TreatmentsPage(QWidget):
     def refresh(self) -> None:
         self.editor.reload()
         treatments = self.editor.list_treatments()
+        diagnoses = self.editor.list_diagnoses()
         self.treatments_by_name = {treatment.name: treatment for treatment in treatments}
+        self.related_diagnoses_by_treatment = {treatment.name: [] for treatment in treatments}
+
+        for diagnosis in diagnoses:
+            if diagnosis.treatment_name is None:
+                continue
+            self.related_diagnoses_by_treatment.setdefault(diagnosis.treatment_name, []).append(
+                diagnosis.name
+            )
 
         self.table.setRowCount(len(treatments))
         for row_index, treatment in enumerate(treatments):
+            related = ", ".join(self.related_diagnoses_by_treatment.get(treatment.name, [])) or "—"
             self._set_cell(row_index, 0, treatment.name)
-            self._set_cell(row_index, 1, treatment.description or "—")
+            self._set_cell(row_index, 1, related)
 
-        self.subtitle.setText(f"Всего названий лечения: {len(treatments)}")
+        self.subtitle.setText(f"Всего лечений: {len(treatments)}")
         self.table.resizeRowsToContents()
 
         if self.current_treatment_name is not None:
@@ -163,20 +171,16 @@ class TreatmentsPage(QWidget):
         self.current_treatment_name = self.table.item(row_index, 0).text()
         treatment = self.treatments_by_name[self.current_treatment_name]
         self.name_input.setText(treatment.name)
-        self.description_input.setPlainText(treatment.description)
+        self._update_linked_diagnoses()
 
     def add_treatment(self) -> None:
         name = self.name_input.text().strip()
-        description = self.description_input.toPlainText().strip()
         if not name:
-            self._show_error("Введите название лечения.")
-            return
-        if not description:
-            self._show_error("Введите описание лечения.")
+            self._show_error("Введите лечение.")
             return
 
         try:
-            self.editor.add_treatment(name=name, description=description)
+            self.editor.add_treatment(name=name, description="")
         except DomainError as error:
             self._show_error(str(error))
             return
@@ -186,23 +190,18 @@ class TreatmentsPage(QWidget):
 
     def save_treatment(self) -> None:
         if self.current_treatment_name is None:
-            self._show_error("Сначала выберите название лечения.")
+            self._show_error("Сначала выберите лечение.")
             return
 
         new_name = self.name_input.text().strip()
-        description = self.description_input.toPlainText().strip()
         if not new_name:
             self._show_error("Название лечения не должно быть пустым.")
-            return
-        if not description:
-            self._show_error("Описание лечения не должно быть пустым.")
             return
 
         try:
             self.editor.update_treatment(
                 self.current_treatment_name,
                 new_name=new_name,
-                description=description,
             )
         except DomainError as error:
             self._show_error(str(error))
@@ -213,7 +212,7 @@ class TreatmentsPage(QWidget):
 
     def delete_selected_treatment(self) -> None:
         if self.current_treatment_name is None:
-            self._show_error("Сначала выберите название лечения.")
+            self._show_error("Сначала выберите лечение.")
             return
 
         try:
@@ -227,7 +226,18 @@ class TreatmentsPage(QWidget):
 
     def _clear_form(self) -> None:
         self.name_input.clear()
-        self.description_input.clear()
+        self.linked_diagnoses.setText("Выберите лечение, чтобы увидеть связанные диагнозы.")
+
+    def _update_linked_diagnoses(self) -> None:
+        if self.current_treatment_name is None:
+            self.linked_diagnoses.setText("Выберите лечение, чтобы увидеть связанные диагнозы.")
+            return
+
+        diagnoses = self.related_diagnoses_by_treatment.get(self.current_treatment_name, [])
+        if diagnoses:
+            self.linked_diagnoses.setText("\n".join(f"- {name}" for name in diagnoses))
+        else:
+            self.linked_diagnoses.setText("Пока не связано ни с одним диагнозом.")
 
     def _set_cell(self, row: int, column: int, text: str) -> None:
         item = QTableWidgetItem(text)
