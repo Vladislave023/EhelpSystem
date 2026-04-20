@@ -8,6 +8,7 @@ from pathlib import Path
 from ehelps_backend.application.facade import ExpertSystemFacade
 from ehelps_backend.domain.exceptions import InvalidPatientStateError
 from ehelps_backend.infrastructure.json_repository import JsonKnowledgeBaseRepository
+from ehelps_ml.prediction import MlPredictionService
 
 
 class DiagnosisServiceTestCase(unittest.TestCase):
@@ -119,3 +120,34 @@ class DiagnosisServiceTestCase(unittest.TestCase):
         self.assertIn(top_hypothesis["diagnosis_name"], {"ожог I степени", "ожог II степени"})
         self.assertGreater(len(top_hypothesis["matched_features"]), 0)
         self.assertGreater(len(top_hypothesis["rejected_features"]), 0)
+
+    def test_ml_prediction_returns_all_probabilities_with_total_one(self) -> None:
+        prediction = MlPredictionService.default().predict(
+            {
+                "Глубина повреждения": 2.5,
+                "Жжение кожи": 0,
+                "Интенсивность боли": 7,
+                "Линейная форма повреждения": 1,
+                "Наличие волдырей": 0,
+                "Наличие гематомы": 0,
+                "Наличие инородного тела": 0,
+                "Наличие кровотечения": 1,
+                "Нарушение целостности кожи": 1,
+                "Ограничение подвижности": 0,
+                "Отёк": 0,
+                "Площадь повреждения": 4.0,
+                "Покраснение кожи": 0,
+                "Точечное повреждение": 0,
+            }
+        )
+
+        if not prediction.available:
+            self.skipTest(prediction.message)
+
+        self.assertEqual(len(prediction.options), 7)
+        self.assertTrue(all(option.score is not None for option in prediction.options))
+        self.assertAlmostEqual(
+            sum(option.score for option in prediction.options if option.score is not None),
+            1.0,
+            places=4,
+        )

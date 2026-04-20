@@ -69,18 +69,7 @@ class MlPredictionService:
         if hasattr(model, "predict_proba"):
             probabilities = model.predict_proba(row)[0]
             class_names = list(getattr(model, "classes_", artifact.get("class_names", [])))
-            ranked = sorted(
-                zip(class_names, probabilities, strict=True),
-                key=lambda item: item[1],
-                reverse=True,
-            )
-            options = [
-                MlPredictionOption(
-                    diagnosis_name=str(class_name),
-                    score=round(float(score), 4),
-                )
-                for class_name, score in ranked[:3]
-            ]
+            options = _build_probability_options(class_names, probabilities)
             if options:
                 confidence = options[0].score
         else:
@@ -94,3 +83,50 @@ class MlPredictionService:
             options=options,
             message="ML-прогноз рассчитан на основе обученной модели.",
         )
+
+
+def _build_probability_options(
+    class_names: list[str],
+    probabilities: object,
+) -> list[MlPredictionOption]:
+    ranked = sorted(
+        (
+            (str(class_name), float(score))
+            for class_name, score in zip(class_names, probabilities, strict=True)
+        ),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    if not ranked:
+        return []
+
+    total = sum(score for _, score in ranked)
+    if total <= 0:
+        uniform_basis_points = 10000 // len(ranked)
+        remainder = 10000 - uniform_basis_points * len(ranked)
+        scaled = [uniform_basis_points for _ in ranked]
+        for index in range(remainder):
+            scaled[index] += 1
+        return [
+            MlPredictionOption(diagnosis_name=diagnosis_name, score=scaled_score / 10000)
+            for (diagnosis_name, _), scaled_score in zip(ranked, scaled, strict=True)
+        ]
+
+    normalized = [(diagnosis_name, score / total) for diagnosis_name, score in ranked]
+    scaled = [int(score * 10000) for _, score in normalized]
+    remainder = 10000 - sum(scaled)
+
+    fractions = sorted(
+        (
+            (score * 10000 - int(score * 10000), index)
+            for index, (_, score) in enumerate(normalized)
+        ),
+        reverse=True,
+    )
+    for _, index in fractions[:remainder]:
+        scaled[index] += 1
+
+    return [
+        MlPredictionOption(diagnosis_name=diagnosis_name, score=scaled_score / 10000)
+        for (diagnosis_name, _), scaled_score in zip(normalized, scaled, strict=True)
+    ]

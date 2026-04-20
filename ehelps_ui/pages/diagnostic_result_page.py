@@ -180,12 +180,7 @@ class DiagnosticResultPage(QWidget):
             status += f" | уверенность: {ml['confidence']:.2%}"
         self.ml_status.setText(status)
         self.ml_details.setText(ml["message"])
-        self.ml_options.setText(
-            "\n".join(
-                self._format_ml_option(item["diagnosis_name"], item["score"])
-                for item in ml["options"]
-            )
-        )
+        self.ml_options.setText(self._format_ml_options(ml["options"]))
 
     def _render_hypotheses(self, hypotheses: list[dict[str, object]]) -> None:
         self._clear_hypotheses()
@@ -277,6 +272,25 @@ class DiagnosticResultPage(QWidget):
         if score is None:
             return f"- {diagnosis_name}"
         return f"- {diagnosis_name}: {score:.2%}"
+
+    @classmethod
+    def _format_ml_options(cls, options: list[dict[str, object]]) -> str:
+        if not options:
+            return "Вероятности по диагнозам недоступны."
+
+        lines = [
+            cls._format_ml_option(item["diagnosis_name"], item["score"])
+            for item in options
+        ]
+        numeric_scores = [
+            float(item["score"])
+            for item in options
+            if item["score"] is not None
+        ]
+        if numeric_scores:
+            lines.append("")
+            lines.append(f"Итого: {sum(numeric_scores):.2%}")
+        return "\n".join(lines)
 
     def _go_back(self) -> None:
         if self.on_back_requested is not None:
