@@ -98,7 +98,7 @@ class DiagnosticResultPage(QWidget):
         self.explanation_text.setWordWrap(True)
         self.expert_card.layout().addWidget(self.explanation_text)
 
-        self.hypotheses_card = self._create_section_card("Алгоритм опровержения гипотез")
+        self.hypotheses_card = self._create_section_card("Причины отклонения гипотез")
         self.hypotheses_container = QVBoxLayout()
         self.hypotheses_container.setSpacing(12)
         self.hypotheses_card.layout().addLayout(self.hypotheses_container)
@@ -166,7 +166,10 @@ class DiagnosticResultPage(QWidget):
             self.expert_actions.setText("Используйте результаты опровержения гипотез ниже.")
 
         self.explanation_text.setText(expert["explanation"])
-        self._render_hypotheses(expert["hypotheses"])
+        self._render_hypotheses(
+            expert["hypotheses"],
+            selected_diagnosis=expert["diagnosis_name"],
+        )
 
         ml = analysis["ml"]
         if not ml["available"]:
@@ -182,53 +185,49 @@ class DiagnosticResultPage(QWidget):
         self.ml_details.setText(ml["message"])
         self.ml_options.setText(self._format_ml_options(ml["options"]))
 
-    def _render_hypotheses(self, hypotheses: list[dict[str, object]]) -> None:
+    def _render_hypotheses(
+        self,
+        hypotheses: list[dict[str, object]],
+        *,
+        selected_diagnosis: str | None = None,
+    ) -> None:
         self._clear_hypotheses()
 
-        if not hypotheses:
-            placeholder = QLabel("Гипотезы пока не рассчитаны.")
+        filtered_hypotheses = [
+            hypothesis
+            for hypothesis in hypotheses
+            if hypothesis["rejected_features"]
+            and hypothesis["diagnosis_name"] != selected_diagnosis
+        ]
+
+        if not filtered_hypotheses:
+            placeholder = QLabel("Для остальных гипотез не найдено причин отклонения.")
             placeholder.setObjectName("MutedText")
             placeholder.setWordWrap(True)
             self.hypotheses_container.addWidget(placeholder)
             return
 
-        for hypothesis in hypotheses:
+        for hypothesis in filtered_hypotheses:
             hypothesis_card = QFrame()
             hypothesis_card.setObjectName("SectionCard")
             hypothesis_layout = QVBoxLayout(hypothesis_card)
             hypothesis_layout.setContentsMargins(14, 12, 14, 12)
             hypothesis_layout.setSpacing(8)
 
-            title = QLabel(
-                f"{hypothesis['diagnosis_name']}"
-                + ("  | точное совпадение" if hypothesis["exact_match"] else "")
-            )
+            title = QLabel(hypothesis["diagnosis_name"])
             title.setObjectName("SectionTitle")
             hypothesis_layout.addWidget(title)
-
-            matched_lines = [
-                self._format_feature_check(item)
-                for item in hypothesis["matched_features"]
-            ]
             rejected_lines = [
                 self._format_feature_check(item)
                 for item in hypothesis["rejected_features"]
             ]
 
-            matched_label = QLabel(
-                "Подошло:\n"
-                + ("\n".join(f"- {line}" for line in matched_lines) if matched_lines else "- нет совпавших признаков")
-            )
-            matched_label.setObjectName("MutedText")
-            matched_label.setWordWrap(True)
-            hypothesis_layout.addWidget(matched_label)
-
             rejected_label = QLabel(
-                "Не подошло:\n"
+                "Причины отклонения:\n"
                 + (
                     "\n".join(f"- {line}" for line in rejected_lines)
                     if rejected_lines
-                    else "- опровержений нет"
+                    else "- причины отклонения не найдены"
                 )
             )
             rejected_label.setObjectName("MutedText")

@@ -120,6 +120,34 @@ class DiagnosisServiceTestCase(unittest.TestCase):
         self.assertIn(top_hypothesis["diagnosis_name"], {"ожог I степени", "ожог II степени"})
         self.assertGreater(len(top_hypothesis["matched_features"]), 0)
         self.assertGreater(len(top_hypothesis["rejected_features"]), 0)
+        self.assertTrue(
+            all("ожог" in item["diagnosis_name"] for item in analysis["expert"]["hypotheses"])
+        )
+
+    def test_exact_cut_analysis_only_keeps_cut_hypotheses(self) -> None:
+        analysis = self.facade.analyze_patient_state(
+            {
+                "Глубина повреждения": 2.5,
+                "Площадь повреждения": 4.0,
+                "Наличие кровотечения": 1,
+                "Интенсивность боли": 7,
+                "Жжение кожи": 0,
+                "Линейная форма повреждения": 1,
+                "Покраснение кожи": 0,
+                "Наличие волдырей": 0,
+                "Нарушение целостности кожи": 1,
+                "Ограничение подвижности": 0,
+                "Отёк": 0,
+                "Наличие гематомы": 0,
+                "Наличие инородного тела": 0,
+                "Точечное повреждение": 0,
+            }
+        )
+
+        self.assertEqual(analysis["expert"]["diagnosis_name"], "глубокий порез")
+        self.assertTrue(
+            all("порез" in item["diagnosis_name"] for item in analysis["expert"]["hypotheses"])
+        )
 
     def test_ml_prediction_returns_all_probabilities_with_total_one(self) -> None:
         prediction = MlPredictionService.default().predict(

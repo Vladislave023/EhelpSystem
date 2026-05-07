@@ -50,14 +50,22 @@ class DiagnosisService:
 
         for diagnosis in self.knowledge_base.iter_non_healthy_diagnoses():
             if self._matches_diagnosis(patient_state, diagnosis):
+                focused_hypotheses = self._filter_hypotheses_by_family(
+                    hypotheses,
+                    self._diagnosis_family(diagnosis.name),
+                )
                 return DiagnosticAnalysis(
                     decision_result=self._build_result(diagnosis, patient_state),
-                    hypotheses=hypotheses,
+                    hypotheses=focused_hypotheses,
                 )
 
+        focused_hypotheses = self._filter_hypotheses_by_family(
+            hypotheses,
+            self._primary_hypothesis_family(hypotheses),
+        )
         return DiagnosticAnalysis(
             decision_result=None,
-            hypotheses=hypotheses,
+            hypotheses=focused_hypotheses,
         )
 
     def _validate_patient_state(self, patient_state: PatientState) -> None:
@@ -188,6 +196,41 @@ class DiagnosisService:
             )
         )
         return hypotheses
+
+    def _filter_hypotheses_by_family(
+        self,
+        hypotheses: list[HypothesisAnalysis],
+        family: str | None,
+    ) -> list[HypothesisAnalysis]:
+        if family is None:
+            return hypotheses
+
+        filtered = [
+            hypothesis
+            for hypothesis in hypotheses
+            if self._diagnosis_family(hypothesis.diagnosis_name) == family
+        ]
+        return filtered or hypotheses
+
+    def _primary_hypothesis_family(self, hypotheses: list[HypothesisAnalysis]) -> str | None:
+        if not hypotheses:
+            return None
+        return self._diagnosis_family(hypotheses[0].diagnosis_name)
+
+    @staticmethod
+    def _diagnosis_family(diagnosis_name: str) -> str:
+        normalized = diagnosis_name.casefold()
+
+        if "порез" in normalized:
+            return "cut"
+        if "ожог" in normalized:
+            return "burn"
+        if "ушиб" in normalized:
+            return "bruise"
+        if "заноз" in normalized:
+            return "splinter"
+
+        return normalized
 
     def _build_no_match_message(self, hypotheses: list[HypothesisAnalysis]) -> str:
         best_matches = hypotheses[:2]
